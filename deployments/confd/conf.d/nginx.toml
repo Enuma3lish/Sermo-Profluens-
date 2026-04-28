@@ -1,0 +1,24 @@
+# confd resource configuration for the Nginx dynamic reverse proxy.
+# confd watches etcd every 5 seconds and regenerates nginx.conf when any key
+# under /services/rooms/private/ changes.
+
+[template]
+src   = "nginx.conf.tmpl"
+dest  = "/etc/nginx/conf.d/sermo.conf"
+keys  = ["/services/rooms/private"]
+owner = "root"
+mode  = "0644"
+
+[template.check_cmd]
+# Validate the generated config before activating it.
+cmd = "/usr/sbin/nginx -t -c {{ .src }}"
+
+[template.reload_cmd]
+cmd = "/usr/sbin/nginx -s reload"
+
+[resource]
+# Polling interval in seconds.
+interval = 5
+
+[etcd]
+nodes = ["http://127.0.0.1:2379"]
