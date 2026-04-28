@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package chat.v1;
+
+option go_package = "github.com/Enuma3lish/sermo-profluens/api/proto;chatpb";
+
+// RoomType distinguishes private (WebSocket) from public (UDP) rooms.
+enum RoomType {
+  ROOM_TYPE_UNSPECIFIED = 0;
+  ROOM_TYPE_PRIVATE     = 1;
+  ROOM_TYPE_PUBLIC      = 2;
+}
+
+// RoomInfo describes a registered room instance.
+message RoomInfo {
+  string   room_id   = 1;
+  string   address   = 2; // "host:port"
+  RoomType room_type = 3;
+}
+
+// RoomEvent is published to NSQ when a room lifecycle event occurs.
+message RoomEvent {
+  string    event_type = 1; // e.g. "RoomCreated", "RoomClosed"
+  string    room_id    = 2;
+  string    creator    = 3;
+  string    topic      = 4;
+  int64     timestamp  = 5; // Unix nanoseconds
+  RoomType  room_type  = 6;
+}
+
+// ManagerService handles room management operations.
+service ManagerService {
+  // CreateRoom provisions a new room worker and returns its address.
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  // ListRooms returns all currently registered rooms.
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
+}
+
+message CreateRoomRequest {
+  string   creator   = 1;
+  string   topic     = 2;
+  RoomType room_type = 3;
+}
+
+message CreateRoomResponse {
+  RoomInfo room = 1;
+}
+
+message ListRoomsRequest {
+  // Optional filter – leave empty to list all types.
+  RoomType room_type = 1;
+}
+
+message ListRoomsResponse {
+  repeated RoomInfo rooms = 1;
+}

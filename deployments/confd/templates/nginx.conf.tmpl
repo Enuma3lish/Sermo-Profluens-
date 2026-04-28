@@ -1,0 +1,48 @@
+# nginx.conf.tmpl – confd template for the Sermo Profluens dynamic reverse proxy.
+#
+# confd renders this template by iterating over all keys in etcd under
+# /services/rooms/private/.  Each key value is a JSON object with the shape:
+#   {"room_id":"…","address":"host:port","room_type":"private"}
+#
+# The rendered file is written to /etc/nginx/conf.d/sermo.conf and nginx is
+# reloaded automatically.
+
+{{range $room := lsdir "/services/rooms/private"}}
+{{$data := json (getv (printf "/services/rooms/private/%s" $room))}}
+upstream room_{{$data.room_id}} {
+    server {{$data.address}};
+    keepalive 32;
+}
+{{end}}
+
+server {
+    listen 80;
+    server_name _;
+
+    # Health-check endpoint for load-balancers.
+    location /healthz {
+        return 200 'OK\n';
+        add_header Content-Type text/plain;
+    }
+
+{{range $room := lsdir "/services/rooms/private"}}
+{{$data := json (getv (printf "/services/rooms/private/%s" $room))}}
+    # Room: {{$data.room_id}}
+    location /rooms/{{$data.room_id}}/ {
+        proxy_pass         http://room_{{$data.room_id}}/;
+        proxy_http_version 1.1;
+
+        # WebSocket upgrade headers.
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout  3600s;
+        proxy_send_timeout  3600s;
+    }
+{{end}}
+}
